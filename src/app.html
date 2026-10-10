@@ -51,6 +51,15 @@
     .li-sw.is-sel, .li-whites .is-sel { outline: 2px solid var(--accent); outline-offset: 2px; }
     .li-whites { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
     #li-one .menu-group { margin-top: var(--sp-5); }
+    .pa-home { margin-top: var(--sp-4); }
+    .pa-stage { text-align: center; padding: var(--sp-4) 0 var(--sp-5); }
+    .pa-stage svg { width: 72px; height: 72px; color: var(--text-faint); display: block; margin: 0 auto var(--sp-3); }
+    .pa-stage.is-on svg { color: var(--accent); filter: drop-shadow(0 0 10px var(--accent)); animation: pa-blink .5s steps(1) infinite; }
+    @keyframes pa-blink { 50% { opacity: .25; } }
+    @media (prefers-reduced-motion: reduce) { .pa-stage.is-on svg { animation: none; } }
+    .pa-stage .readout { font-size: var(--fs-xl); }
+    #party .menu-group { margin-top: var(--sp-5); }
+    .pa-run { position: relative; }
     .steps { display: flex; flex-direction: column; gap: var(--sp-2); padding-left: 1.4em; color: var(--text); }
     .steps li::marker { color: var(--text-dim); }
     .steps a { color: var(--cyan); }
@@ -60,7 +69,7 @@
   <main class="app">
     <header class="app-header">
       <h1 class="app-title" data-view-title>Kasa Lights</h1>
-      <span class="app-meta">v1.0</span>
+      <span class="app-meta">v1.1</span>
     </header>
     <div class="screen">
       <canvas class="rain" aria-hidden="true" hidden></canvas>
@@ -80,12 +89,45 @@
             <button class="btn btn-primary" data-li-all="on">All on</button>
           </div>
           <p class="li-note" id="li-note" hidden></p>
+          <section class="panel active" data-title="Party" id="pa-banner" style="margin-top:var(--sp-4)" hidden>
+            <p>Party mode is on.</p>
+            <button class="btn btn-danger btn-block" data-pa-toggle style="margin-top:var(--sp-3)">Stop party</button>
+          </section>
           <div class="li-list" id="li-list"></div>
+          <div class="menu pa-home">
+            <a class="menu-item" href="#/party"><span class="mi-label">Party mode<small>Flash every light like a strobe</small></span></a>
+          </div>
         </div>
       </section>
 
       <section class="view" data-route="/light" data-title="Light">
         <div id="li-one"></div>
+      </section>
+
+      <section class="view" data-route="/party" data-title="Party" id="party">
+        <div class="pa-stage" id="pa-stage">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
+          <div class="readout" id="pa-state">Ready</div>
+          <p class="hint" id="pa-hint">Every light flashes together.</p>
+        </div>
+        <button class="btn btn-primary btn-block" data-pa-toggle id="pa-go">Start party</button>
+        <div class="menu-group">
+          <span class="label">Mode</span>
+          <div class="segmented" role="radiogroup" aria-label="Mode">
+            <button role="radio" data-setting="partyMode" data-value="strobe">Strobe</button>
+            <button role="radio" data-setting="partyMode" data-value="color">Colour</button>
+            <button role="radio" data-setting="partyMode" data-value="both">Both</button>
+          </div>
+        </div>
+        <div class="menu-group">
+          <span class="label">Speed</span>
+          <div class="segmented" role="radiogroup" aria-label="Speed">
+            <button role="radio" data-setting="partySpeed" data-value="slow">Slow</button>
+            <button role="radio" data-setting="partySpeed" data-value="medium">Medium</button>
+            <button role="radio" data-setting="partySpeed" data-value="fast">Fast</button>
+          </div>
+          <p class="menu-note">Kasa bulbs can switch a few times a second at most. Keep this app open; your lights go back to how they were when you stop.</p>
+        </div>
       </section>
 
       <section class="view" data-route="/settings" data-title="Settings">
@@ -112,7 +154,7 @@
         <div class="menu-group">
           <span class="label">About</span>
           <div class="menu">
-            <a class="menu-item" href="#/settings/about"><span class="mi-label">About</span><span class="mi-value">v1.0</span></a>
+            <a class="menu-item" href="#/settings/about"><span class="mi-label">About</span><span class="mi-value">v1.1</span></a>
           </div>
         </div>
       </section>
@@ -146,7 +188,7 @@
 
       <section class="view" data-route="/settings/about" data-title="About">
         <section class="panel" data-title="Kasa Lights">
-          <div class="kv"><span>Version</span><span>1.0</span></div>
+          <div class="kv"><span>Version</span><span>1.1</span></div>
           <div class="kv"><span>Lights</span><span id="li-count">—</span></div>
           <div class="kv"><span>Relay port</span><span>7788</span></div>
           <div class="kv"><span>Needs</span><span>Relay + Tailscale</span></div>
@@ -158,7 +200,8 @@
       <button class="key key-sm" data-back aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" aria-hidden="true"><path d="M15 4 7 12l8 8"/></svg></button>
       <button class="key key-sm" data-open-sheet="menu" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
       <div class="page-keys" data-show-on="/ /light" hidden><button class="key key-sm" id="k-power" aria-label="All on or off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" aria-hidden="true"><path d="M12 3v9M6.3 6.3a8 8 0 1 0 11.4 0"/></svg></button></div>
-      <button class="key key-sm" data-route="/" data-hide-on="/ /light" aria-label="Lights"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5V16h8v-2.5A6 6 0 0 0 12 3z"/></svg></button>
+      <div class="page-keys" data-show-on="/party" hidden><button class="key key-sm" data-pa-toggle id="k-party" aria-label="Start party"></button></div>
+      <button class="key key-sm" data-route="/" data-hide-on="/ /light /party" aria-label="Lights"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5V16h8v-2.5A6 6 0 0 0 12 3z"/></svg></button>
     </nav>
   </main>
 
@@ -172,6 +215,7 @@
     <div class="menu">
       <button class="menu-item" data-li-all="on" data-action="all"><span class="mi-label">All on</span></button>
       <button class="menu-item" data-li-all="off" data-action="all"><span class="mi-label">All off</span></button>
+      <button class="menu-item" data-route="/party"><span class="mi-label">Party mode</span></button>
       <button class="menu-item" data-route="/settings/relay"><span class="mi-label">Relay setup</span></button>
     </div>
   </dialog>

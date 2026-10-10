@@ -1,7 +1,7 @@
 /* Kasa Lights. Talks to the lights relay (kasa_bridge.py in bgriffie/phosphor-os/bridge) running on a
    computer at home, reached over HTTPS through Tailscale. The relay talks to the Kasa bulbs.
    Same relay, API and link as the Lights app in Phosphor OS. */
-PH.init({});
+PH.init({ partyMode: 'strobe', partySpeed: 'medium' });
 (() => {
   const $ = s => document.querySelector(s);
   const KEY = 'kasa-lights:data:';   // every tool shares bgriffie.github.io, so keys are prefixed
@@ -184,11 +184,79 @@ PH.init({});
     link = null; lights = []; save('link', null); save('cache', []); PH.toast('Relay forgotten.', 'warn'); render();
   });
 
+
+  /* ---------- Party mode: every light flashes together until stopped ---------- */
+  // Each beat sends one request per light at the same time and waits for them all, so the
+  // pace never outruns what the bulbs and the relay can do. Lights are put back afterwards.
+  const BEAT = { slow: 1200, medium: 600, fast: 250 };
+  const STOP_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14"/></svg>';
+  const GO_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>';
+  let party = null;   // { snap, beat, fails }
+  const partyOn = () => !!party;
+  const send = (id, body) => call('/lights/' + encodeURIComponent(id), body);
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  let wake = null;
+  async function startParty() {
+    if (!ready()) { PH.go('/settings/relay'); return; }
+    const targets = lights.filter(l => l.online);
+    if (!targets.length) { PH.toast('No lights are responding right now.', 'warn'); return; }
+    party = { snap: targets.map(l => ({ ...l, hsv: l.hsv && [...l.hsv] })), beat: 0, fails: 0 };
+    clearInterval(pollT); pollT = null;
+    try { wake = await navigator.wakeLock?.request('screen'); } catch {}
+    renderParty();
+    const run = party;
+    while (party === run) {
+      const t0 = Date.now(), mode = PH.store.get('partyMode'), k = run.beat++;
+      const on = k % 2 === 0, hue = (k * 137) % 360;
+      run.pending = Promise.allSettled(run.snap.map((l, i) => {
+        const colour = l.hsv && (mode === 'color' || (mode === 'both' && on));
+        if (colour) return send(l.id, { hsv: [(hue + i * 60) % 360, 100, 100], on: true });
+        return send(l.id, { on: mode === 'color' ? true : on });
+      }));
+      const res = await run.pending;
+      if (party !== run) break;
+      run.fails = res.every(r => r.status === 'rejected') ? run.fails + 1 : 0;
+      if (run.fails >= 3) { PH.toast(res[0].reason?.message || 'Lost the relay.', 'warn'); await stopParty(); return; }
+      await sleep(Math.max(0, (BEAT[PH.store.get('partySpeed')] || 600) - (Date.now() - t0)));
+    }
+  }
+  async function stopParty() {
+    const run = party; if (!run) return;
+    party = null; renderParty();
+    try { await wake?.release(); } catch {} wake = null;
+    await run.pending;   // let the last flash land first, so it can't undo the restore
+    // put every light back the way it was
+    await Promise.allSettled(run.snap.map(l => {
+      if (!l.on) return send(l.id, { on: false });
+      const body = { on: true };
+      if (l.hsv && !l.temp) body.hsv = l.hsv; else if (l.temp) body.temp = l.temp;
+      if (l.brightness != null) body.brightness = l.brightness;
+      return send(l.id, body);
+    }));
+    PH.toast('Party over. Lights restored.');
+    sync();
+  }
+  function renderParty() {
+    const on = partyOn();
+    $('#pa-stage').classList.toggle('is-on', on);
+    $('#pa-state').textContent = on ? 'Party on' : 'Ready';
+    $('#pa-go').textContent = on ? 'Stop party' : 'Start party';
+    $('#pa-go').className = 'btn btn-block ' + (on ? 'btn-danger' : 'btn-primary');
+    $('#pa-banner').hidden = !on;
+    const k = $('#k-party'); k.innerHTML = on ? STOP_SVG : GO_SVG; k.setAttribute('aria-label', on ? 'Stop party' : 'Start party'); k.setAttribute('aria-pressed', String(on));
+    const m = PH.store.get('partyMode');
+    $('#pa-hint').textContent = m === 'color' ? 'Colour bulbs jump between bright colours.' : m === 'both' ? 'Lights flash and colour bulbs change colour on every flash.' : 'Every light flashes on and off together.';
+  }
+  document.addEventListener('click', e => { if (e.target.closest('[data-pa-toggle]')) partyOn() ? stopParty() : startParty(); });
+  PH.on('partyMode', renderParty);
+  renderParty();
+
   // Poll only while the app is on screen
   let pollT = null;
   function sync() {
     clearInterval(pollT); pollT = null;
     render();
+    if (party) { if (document.hidden) stopParty(); return; }
     if (document.hidden || !ready()) return;
     refresh(); pollT = setInterval(() => { if (!dragging) refresh(); }, 6000);
   }
