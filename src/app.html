@@ -69,7 +69,7 @@
   <main class="app">
     <header class="app-header">
       <h1 class="app-title" data-view-title>Kasa Lights</h1>
-      <span class="app-meta">v1.1</span>
+      <span class="app-meta">v1.2</span>
     </header>
     <div class="screen">
       <canvas class="rain" aria-hidden="true" hidden></canvas>
@@ -89,10 +89,6 @@
             <button class="btn btn-primary" data-li-all="on">All on</button>
           </div>
           <p class="li-note" id="li-note" hidden></p>
-          <section class="panel active" data-title="Party" id="pa-banner" style="margin-top:var(--sp-4)" hidden>
-            <p>Party mode is on.</p>
-            <button class="btn btn-danger btn-block" data-pa-toggle style="margin-top:var(--sp-3)">Stop party</button>
-          </section>
           <div class="li-list" id="li-list"></div>
           <div class="menu pa-home">
             <a class="menu-item" href="#/party"><span class="mi-label">Party mode<small>Flash every light like a strobe</small></span></a>
@@ -126,7 +122,7 @@
             <button role="radio" data-setting="partySpeed" data-value="medium">Medium</button>
             <button role="radio" data-setting="partySpeed" data-value="fast">Fast</button>
           </div>
-          <p class="menu-note">Kasa bulbs can switch a few times a second at most. Keep this app open; your lights go back to how they were when you stop.</p>
+          <p class="menu-note">Kasa bulbs can switch a few times a second at most. Party mode runs while this page is open. Leaving it stops the party and puts your lights back.</p>
         </div>
       </section>
 
@@ -154,7 +150,7 @@
         <div class="menu-group">
           <span class="label">About</span>
           <div class="menu">
-            <a class="menu-item" href="#/settings/about"><span class="mi-label">About</span><span class="mi-value">v1.1</span></a>
+            <a class="menu-item" href="#/settings/about"><span class="mi-label">About</span><span class="mi-value">v1.2</span></a>
           </div>
         </div>
       </section>
@@ -188,7 +184,7 @@
 
       <section class="view" data-route="/settings/about" data-title="About">
         <section class="panel" data-title="Kasa Lights">
-          <div class="kv"><span>Version</span><span>1.1</span></div>
+          <div class="kv"><span>Version</span><span>1.2</span></div>
           <div class="kv"><span>Lights</span><span id="li-count">—</span></div>
           <div class="kv"><span>Relay port</span><span>7788</span></div>
           <div class="kv"><span>Needs</span><span>Relay + Tailscale</span></div>

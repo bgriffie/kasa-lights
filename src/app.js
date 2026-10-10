@@ -224,7 +224,8 @@ PH.init({ partyMode: 'strobe', partySpeed: 'medium' });
     const run = party; if (!run) return;
     party = null; renderParty();
     try { await wake?.release(); } catch {} wake = null;
-    await run.pending;   // let the last flash land first, so it can't undo the restore
+    // let the last flash land first so it can't undo the restore, but never hold Stop up for long
+    await Promise.race([run.pending, sleep(1500)]);
     // put every light back the way it was
     await Promise.allSettled(run.snap.map(l => {
       if (!l.on) return send(l.id, { on: false });
@@ -242,13 +243,14 @@ PH.init({ partyMode: 'strobe', partySpeed: 'medium' });
     $('#pa-state').textContent = on ? 'Party on' : 'Ready';
     $('#pa-go').textContent = on ? 'Stop party' : 'Start party';
     $('#pa-go').className = 'btn btn-block ' + (on ? 'btn-danger' : 'btn-primary');
-    $('#pa-banner').hidden = !on;
     const k = $('#k-party'); k.innerHTML = on ? STOP_SVG : GO_SVG; k.setAttribute('aria-label', on ? 'Stop party' : 'Start party'); k.setAttribute('aria-pressed', String(on));
     const m = PH.store.get('partyMode');
     $('#pa-hint').textContent = m === 'color' ? 'Colour bulbs jump between bright colours.' : m === 'both' ? 'Lights flash and colour bulbs change colour on every flash.' : 'Every light flashes on and off together.';
   }
   document.addEventListener('click', e => { if (e.target.closest('[data-pa-toggle]')) partyOn() ? stopParty() : startParty(); });
   PH.on('partyMode', renderParty);
+  // Party mode lives on its page: leaving it (Back, Home, the menu) ends the party
+  PH.on('route', r => { if (party && r !== '/party') stopParty(); });
   renderParty();
   // Phosphor OS awaits this before removing the app's frame, so a running party is stopped and restored
   window.osBeforeClose = () => stopParty();

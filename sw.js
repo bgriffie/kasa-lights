@@ -1,6 +1,6 @@
 /* Kasa Lights service worker: caches the app shell so it runs offline. Bump CACHE on every change. */
 const PREFIX = 'kasa-lights-';   // all tools share bgriffie.github.io: only touch our own caches
-const CACHE = PREFIX + 'v3';   // bump on every change
+const CACHE = PREFIX + 'v4';   // bump on every change
 const ASSETS = ['./', './index.html', './manifest.json', './apple-touch-icon.png', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
