@@ -25,41 +25,116 @@
     .app-controls .key svg { width: 20px; height: 20px; }
     .glyph-svg { width: 56px; height: 56px; color: var(--accent); filter: drop-shadow(0 0 8px var(--accent)); margin: 0 auto var(--sp-3); display: block; }
 
-    .li-allrow { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
-    .li-note { margin-top: var(--sp-3); color: var(--amber); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); }
-    .li-list { display: flex; flex-direction: column; gap: var(--sp-3); margin-top: var(--sp-4); }
-    .li-card { border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-1); padding: var(--sp-3) var(--sp-4); }
-    .li-card.is-on { border-color: var(--line-strong); }
-    .li-card.is-offline { opacity: .55; }
-    .li-top { display: flex; align-items: center; gap: var(--sp-3); }
-    .li-main { flex: 1 1 auto; min-width: 0; display: grid; grid-template-columns: auto 1fr; column-gap: var(--sp-3); align-items: center; text-align: left;
-      background: none; border: 0; padding: var(--sp-1) 0; color: inherit; font: inherit; cursor: pointer; }
-    .li-dot { grid-row: span 2; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-strong); background: transparent; }
-    .li-card.is-on .li-dot { box-shadow: 0 0 12px currentColor; }
-    .li-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .li-sub { color: var(--text-dim); font-size: var(--fs-sm); }
-    .li-card.big { padding: var(--sp-4); }
-    .li-card.big .li-name { font-size: var(--fs-lg); }
-    .li-range { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 28px; margin: var(--sp-3) 0 0; background: none; touch-action: pan-y; }
-    .li-range::-webkit-slider-runnable-track { height: 8px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface-2); }
-    .li-range::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; margin-top: -10px; border-radius: 4px; background: var(--accent); box-shadow: var(--glow-box); border: 0; }
-    .li-range::-moz-range-track { height: 8px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface-2); }
-    .li-range::-moz-range-thumb { width: 26px; height: 26px; border-radius: 4px; background: var(--accent); border: 0; }
-    .li-swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-3); }
-    .li-sw { aspect-ratio: 1.6; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); cursor: pointer; }
+    /* One screen per page, no scrolling (same style as Phosphor TV's remote, Floyd 2026-10-26):
+       status line with the main action as a round button, a row of big icon "channels",
+       one-line strips only when relevant, then the main control big and centred. */
+    .rc { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: var(--sp-3); }
+    .rc[hidden] { display: none; }
+    .rc-top { display: flex; align-items: center; gap: var(--sp-3); min-height: 48px; padding: 0 var(--sp-1); flex: none; }
+    .rc-who { min-width: 0; flex: 1; }
+    .led { width: 10px; height: 10px; border-radius: 50%; flex: none; border: 1px solid var(--line-strong); }
+    .led.on { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .led.wait { background: var(--amber); border-color: var(--amber); box-shadow: 0 0 8px var(--amber); }
+    .led.err { background: var(--red); border-color: var(--red); }
+    .who-t { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .who-s { color: var(--text-dim); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .note { margin: 0; color: var(--amber); font-size: var(--fs-xs); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; flex: none; }
+    .rc-side { display: flex; flex-direction: column; gap: var(--sp-2); flex: none; }
+    .rc-main { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
+
+    .rm-b { min-height: 48px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface-1); color: var(--text);
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: inherit; font-size: var(--fs-xs); font-weight: 700;
+      text-transform: uppercase; letter-spacing: var(--tracking-label); cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; padding: 0 var(--sp-2); }
+    .rm-b svg { width: 20px; height: 20px; flex: none; }
+    .rm-b:active { background: var(--surface-3); }
+    .rm-b:disabled { opacity: .45; }
+    .rm-b.pow { width: 48px; min-height: 44px; padding: 0; flex: none; border-radius: 50%; }
+    .rm-b.pow[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); box-shadow: var(--glow-box); }
+    .rm-b.ic { width: 40px; min-height: 40px; padding: 0; flex: none; border-color: var(--line); }
+
+    /* Channels */
+    .chans { display: grid; grid-template-columns: repeat(var(--n, 4), 1fr); gap: var(--sp-2); }
+    .ch { min-height: 58px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface-1); color: var(--text-dim);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: inherit; font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .06em; cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; padding: 0; }
+    .ch svg { width: 22px; height: 22px; }
+    .ch:active { background: var(--surface-3); }
+    .ch:disabled { opacity: .45; }
+    .ch.cur, .ch[aria-checked="true"] { border-color: var(--accent); color: var(--accent); box-shadow: var(--glow-box); }
+    .lbl { color: var(--text-dim); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: var(--tracking-label); padding: 0 var(--sp-1); }
+
+    /* One-line strip */
+    .line { display: flex; align-items: center; gap: var(--sp-2); min-height: 48px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-1); padding: 0 var(--sp-1); flex: none; }
+    .line[hidden] { display: none; }
+    .line-ic { flex: none; display: flex; padding-left: var(--sp-2); color: var(--accent); }
+    .line-ic svg { width: 20px; height: 20px; }
+    .line-main { flex: 1; min-width: 0; align-self: stretch; display: flex; flex-direction: column; justify-content: center; text-align: left; background: none; border: 0;
+      color: var(--text); font: inherit; padding: 0 var(--sp-1); cursor: pointer; }
+    .line-t { font-weight: 700; font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .line-s { color: var(--text-dim); font-size: var(--fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* The lights: big tiles, tap to switch, the corner key for colour and brightness */
+    .tiles { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(var(--rows, 2), minmax(64px, 150px));
+      align-content: center; gap: var(--sp-2); overflow-y: auto; }
+    .tiles.busy { opacity: .5; pointer-events: none; }
+    .tl { position: relative; display: flex; min-width: 0; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface-1); }
+    .tl.is-on { border-color: var(--accent); box-shadow: var(--glow-box); }
+    .tl.is-offline { opacity: .5; }
+    .tl-main { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: var(--sp-2) 44px var(--sp-2) var(--sp-3);
+      background: none; border: 0; color: var(--text); font: inherit; text-align: left; cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+    .tl-main:active { background: var(--surface-3); }
+    .tl-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tl-sub { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .06em; }
+    .tl.is-on .tl-sub { color: var(--accent); }
+    .dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--line-strong); flex: none; }
+    .tl.is-on .dot, .big-dot.is-on { box-shadow: 0 0 10px currentColor; }
+    .tl-more { position: absolute; top: 4px; right: 4px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border: 0; background: none;
+      color: var(--text-dim); cursor: pointer; padding: 0; }
+    .tl-more svg { width: 20px; height: 20px; }
+    .tiles .menu-note { grid-column: 1 / -1; align-self: center; text-align: center; }
+
+    /* One light */
+    .dim { flex: none; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: var(--sp-3); }
+    .dim .readout { font-size: var(--fs-xl); min-width: 3.2em; text-align: right; }
+    .li-range { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 44px; margin: 0; background: none; touch-action: pan-y; }
+    .li-range::-webkit-slider-runnable-track { height: 12px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface-2); }
+    .li-range::-webkit-slider-thumb { -webkit-appearance: none; width: 34px; height: 34px; margin-top: -12px; border-radius: 4px; background: var(--accent); box-shadow: var(--glow-box); border: 0; }
+    .li-range::-moz-range-track { height: 12px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface-2); }
+    .li-range::-moz-range-thumb { width: 34px; height: 34px; border-radius: 4px; background: var(--accent); border: 0; }
+    .sw-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-2); }
+    .li-sw { min-height: 44px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); cursor: pointer; }
     .li-sw:disabled { opacity: .4; }
-    .li-sw.is-sel, .li-whites .is-sel { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .li-whites { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
-    #li-one .menu-group { margin-top: var(--sp-5); }
-    .pa-home { margin-top: var(--sp-4); }
-    .pa-stage { text-align: center; padding: var(--sp-4) 0 var(--sp-5); }
-    .pa-stage svg { width: 72px; height: 72px; color: var(--text-faint); display: block; margin: 0 auto var(--sp-3); }
-    .pa-stage.is-on svg { color: var(--accent); filter: drop-shadow(0 0 10px var(--accent)); animation: pa-blink .5s steps(1) infinite; }
+    .li-sw.is-sel { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .wh-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-2); }
+    .wh-grid .rm-b { font-size: 10px; letter-spacing: .04em; }
+    .wh-grid .rm-b.is-sel { border-color: var(--accent); color: var(--accent); box-shadow: var(--glow-box); }
+    .one-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: var(--sp-3); }
+
+    /* Party: the big round start button */
+    .rc-big { align-self: center; width: min(62%, 210px, 30vh); aspect-ratio: 1; border-radius: 50%; border: 1px solid var(--accent); background: var(--surface-1);
+      color: var(--accent); box-shadow: var(--glow-box); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-3);
+      font: inherit; font-weight: 700; font-size: var(--fs-sm); letter-spacing: var(--tracking-label); text-transform: uppercase; text-align: center; padding: var(--sp-4); cursor: pointer; }
+    .rc-big svg { width: 44px; height: 44px; filter: drop-shadow(0 0 6px var(--accent)); }
+    .rc-big:active { background: var(--surface-3); }
+    .rc-big.is-on { border-color: var(--red); color: var(--red); box-shadow: 0 0 14px rgba(255, 92, 92, .35); }
+    .rc-big.is-on svg { filter: none; }
+    .pa-live svg { animation: pa-blink .5s steps(1) infinite; }
     @keyframes pa-blink { 50% { opacity: .25; } }
-    @media (prefers-reduced-motion: reduce) { .pa-stage.is-on svg { animation: none; } }
-    .pa-stage .readout { font-size: var(--fs-xl); }
-    #party .menu-group { margin-top: var(--sp-5); }
-    .pa-run { position: relative; }
+    @media (prefers-reduced-motion: reduce) { .pa-live svg { animation: none; } }
+    .pa-big-box { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; }
+
+    /* Wider than tall (the phone turned in Phosphor OS): status, channels and strips left, the main control right */
+    @media (min-aspect-ratio: 5/4) {
+      .rc-split { flex-direction: row; gap: var(--sp-3); }
+      .rc-split > .rc-left { flex: 1 1 42%; min-width: 0; display: flex; flex-direction: column; gap: var(--sp-2); justify-content: center; }
+      .rc-split > .rc-main { flex: 1 1 58%; }
+      .rc-top { min-height: 40px; }
+      .tiles { grid-template-rows: repeat(var(--rows, 2), minmax(52px, 96px)); }
+      .ch { font-size: 9px; letter-spacing: .03em; white-space: nowrap; }
+    }
+    .rc-left { display: contents; }
+    @media (min-aspect-ratio: 5/4) { .rc-split > .rc-left { display: flex; } }
+
     .steps { display: flex; flex-direction: column; gap: var(--sp-2); padding-left: 1.4em; color: var(--text); }
     .steps li::marker { color: var(--text-dim); }
     .steps a { color: var(--cyan); }
@@ -69,60 +144,90 @@
   <main class="app">
     <header class="app-header">
       <h1 class="app-title" data-view-title>Kasa Lights</h1>
-      <span class="app-meta">v1.2</span>
+      <span class="app-meta">v1.3</span>
     </header>
     <div class="screen">
       <canvas class="rain" aria-hidden="true" hidden></canvas>
       <nav class="path" data-path aria-label="Location"></nav>
       <div class="screen-body">
 
-      <section class="view" data-route="/" data-title="Lights">
+      <section class="view fill" data-route="/" data-title="Lights">
         <div class="empty" id="li-off" hidden>
-          <svg class="glyph-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5V16h8v-2.5A6 6 0 0 0 12 3z"/></svg>
+          <svg class="glyph-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z"/></svg>
           <h2>Lights aren't set up</h2>
           <p>Your Kasa bulbs are controlled through a small relay on a computer at home.</p>
           <button class="btn btn-primary" data-route="/settings/relay">Set up lights</button>
         </div>
-        <div id="li-on" hidden>
-          <div class="li-allrow">
-            <button class="btn btn-ghost" data-li-all="off">All off</button>
-            <button class="btn btn-primary" data-li-all="on">All on</button>
+        <div class="rc rc-split" id="li-on" hidden>
+          <div class="rc-left">
+            <div class="rc-top">
+              <span class="led" id="li-led" aria-hidden="true"></span>
+              <div class="rc-who"><div class="who-t">Lights</div><div class="who-s" id="li-sum">Connecting…</div></div>
+              <button class="rm-b pow" id="li-pow" aria-pressed="false" aria-label="All on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" aria-hidden="true"><path d="M12 3v9M6.3 6.3a8 8 0 1 0 11.4 0"/></svg></button>
+            </div>
+            <p class="note" id="li-note" hidden></p>
+            <div class="chans" role="group" aria-label="All lights">
+              <button class="ch" data-li-all="on" id="ch-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z"/></svg><span>All on</span></button>
+              <button class="ch" data-li-all="off" id="ch-off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><span>All off</span></button>
+              <button class="ch" data-li-warm id="ch-warm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" aria-hidden="true"><path d="M12 3c3 4 5 6.5 5 10a5 5 0 0 1-10 0c0-2 .8-3.4 2-4.5 0 2 1 3.2 2.2 3.2C11 9 10.5 6 12 3z"/></svg><span>Warm</span></button>
+              <button class="ch" data-pa-toggle id="ch-party"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg><span>Party</span></button>
+            </div>
+            <div class="line" id="pa-line" hidden>
+              <span class="line-ic pa-live"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></span>
+              <button class="line-main" data-route="/party"><span class="line-t">Party on</span><span class="line-s" id="pa-line-s"></span></button>
+              <button class="rm-b ic" data-pa-toggle aria-label="Stop the party"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 5h14v14H5z"/></svg></button>
+            </div>
           </div>
-          <p class="li-note" id="li-note" hidden></p>
-          <div class="li-list" id="li-list"></div>
-          <div class="menu pa-home">
-            <a class="menu-item" href="#/party"><span class="mi-label">Party mode<small>Flash every light like a strobe</small></span></a>
+          <div class="rc-main">
+            <div class="tiles" id="li-list" role="group" aria-label="Lights"></div>
           </div>
         </div>
       </section>
 
-      <section class="view" data-route="/light" data-title="Light">
-        <div id="li-one"></div>
+      <section class="view fill" data-route="/light" data-title="Light">
+        <div class="rc rc-split" id="li-one">
+          <div class="rc-left">
+            <div class="rc-top">
+              <span class="dot big-dot" id="one-dot" aria-hidden="true"></span>
+              <div class="rc-who"><div class="who-t" id="one-name">—</div><div class="who-s" id="one-sub"></div></div>
+              <button class="rm-b pow" id="one-pow" aria-pressed="false" aria-label="Turn on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" aria-hidden="true"><path d="M12 3v9M6.3 6.3a8 8 0 1 0 11.4 0"/></svg></button>
+            </div>
+            <div class="dim" id="one-dim">
+              <input type="range" class="li-range" id="one-range" min="1" max="100" aria-label="Brightness">
+              <span class="readout" id="one-pct">—</span>
+            </div>
+          </div>
+          <div class="rc-main one-body">
+            <div id="one-col"><div class="lbl">Colour</div><div class="sw-grid" id="one-sw" style="margin-top:var(--sp-2)"></div></div>
+            <div id="one-wh"><div class="lbl">White</div><div class="wh-grid" id="one-whites" style="margin-top:var(--sp-2)"></div></div>
+            <p class="menu-note" id="one-gone" hidden>That light is gone. Go back and pick another.</p>
+          </div>
+        </div>
       </section>
 
-      <section class="view" data-route="/party" data-title="Party" id="party">
-        <div class="pa-stage" id="pa-stage">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
-          <div class="readout" id="pa-state">Ready</div>
-          <p class="hint" id="pa-hint">Every light flashes together.</p>
-        </div>
-        <button class="btn btn-primary btn-block" data-pa-toggle id="pa-go">Start party</button>
-        <div class="menu-group">
-          <span class="label">Mode</span>
-          <div class="segmented" role="radiogroup" aria-label="Mode">
-            <button role="radio" data-setting="partyMode" data-value="strobe">Strobe</button>
-            <button role="radio" data-setting="partyMode" data-value="color">Colour</button>
-            <button role="radio" data-setting="partyMode" data-value="both">Both</button>
+      <section class="view fill" data-route="/party" data-title="Party" id="party">
+        <div class="rc rc-split">
+          <div class="rc-left">
+            <div class="rc-top">
+              <span class="led" id="pa-led" aria-hidden="true"></span>
+              <div class="rc-who"><div class="who-t">Party</div><div class="who-s" id="pa-hint">Every light flashes together</div></div>
+            </div>
+            <div class="lbl">Mode</div>
+            <div class="chans" style="--n:3" role="radiogroup" aria-label="Mode">
+              <button class="ch" role="radio" data-setting="partyMode" data-value="strobe"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg><span>Strobe</span></button>
+              <button class="ch" role="radio" data-setting="partyMode" data-value="color"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="9" cy="9" r="5"/><circle cx="15" cy="9" r="5"/><circle cx="12" cy="15" r="5"/></svg><span>Colour</span></button>
+              <button class="ch" role="radio" data-setting="partyMode" data-value="both"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" aria-hidden="true"><circle cx="16" cy="15" r="5"/><path d="M10 2 4 11h5l-1 7"/></svg><span>Both</span></button>
+            </div>
+            <div class="lbl">Speed</div>
+            <div class="chans" style="--n:3" role="radiogroup" aria-label="Speed">
+              <button class="ch" role="radio" data-setting="partySpeed" data-value="slow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg><span>Slow</span></button>
+              <button class="ch" role="radio" data-setting="partySpeed" data-value="medium"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" aria-hidden="true"><path d="M5 5l7 7-7 7M12 5l7 7-7 7"/></svg><span>Medium</span></button>
+              <button class="ch" role="radio" data-setting="partySpeed" data-value="fast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" aria-hidden="true"><path d="M3 5l6 7-6 7M9 5l6 7-6 7M15 5l6 7-6 7"/></svg><span>Fast</span></button>
+            </div>
           </div>
-        </div>
-        <div class="menu-group">
-          <span class="label">Speed</span>
-          <div class="segmented" role="radiogroup" aria-label="Speed">
-            <button role="radio" data-setting="partySpeed" data-value="slow">Slow</button>
-            <button role="radio" data-setting="partySpeed" data-value="medium">Medium</button>
-            <button role="radio" data-setting="partySpeed" data-value="fast">Fast</button>
+          <div class="rc-main pa-big-box">
+            <button class="rc-big" data-pa-toggle id="pa-go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg><span id="pa-go-t">Start party</span></button>
           </div>
-          <p class="menu-note">Kasa bulbs can switch a few times a second at most. Party mode runs while this page is open. Leaving it stops the party and puts your lights back.</p>
         </div>
       </section>
 
@@ -150,7 +255,7 @@
         <div class="menu-group">
           <span class="label">About</span>
           <div class="menu">
-            <a class="menu-item" href="#/settings/about"><span class="mi-label">About</span><span class="mi-value">v1.2</span></a>
+            <a class="menu-item" href="#/settings/about"><span class="mi-label">About</span><span class="mi-value">v1.3</span></a>
           </div>
         </div>
       </section>
@@ -184,7 +289,7 @@
 
       <section class="view" data-route="/settings/about" data-title="About">
         <section class="panel" data-title="Kasa Lights">
-          <div class="kv"><span>Version</span><span>1.2</span></div>
+          <div class="kv"><span>Version</span><span>1.3</span></div>
           <div class="kv"><span>Lights</span><span id="li-count">—</span></div>
           <div class="kv"><span>Relay port</span><span>7788</span></div>
           <div class="kv"><span>Needs</span><span>Relay + Tailscale</span></div>
@@ -205,14 +310,8 @@
     <div class="sheet-title">Go to</div>
     <div class="menu" data-sections>
       <button class="menu-item" data-route="/"><span class="mi-glyph" aria-hidden="true">■</span><span class="mi-label">Lights</span></button>
+      <button class="menu-item" data-route="/party"><span class="mi-glyph" aria-hidden="true">▲</span><span class="mi-label">Party</span></button>
       <button class="menu-item" data-route="/settings"><span class="mi-glyph" aria-hidden="true">⚙</span><span class="mi-label">Settings</span></button>
-    </div>
-    <div class="sheet-title">Actions</div>
-    <div class="menu">
-      <button class="menu-item" data-li-all="on" data-action="all"><span class="mi-label">All on</span></button>
-      <button class="menu-item" data-li-all="off" data-action="all"><span class="mi-label">All off</span></button>
-      <button class="menu-item" data-route="/party"><span class="mi-label">Party mode</span></button>
-      <button class="menu-item" data-route="/settings/relay"><span class="mi-label">Relay setup</span></button>
     </div>
   </dialog>
 

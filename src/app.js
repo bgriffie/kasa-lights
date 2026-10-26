@@ -78,87 +78,115 @@ PH.init({ partyMode: 'strobe', partySpeed: 'medium' });
     if (l.temp) { const t = Math.max(0, Math.min(1, (l.temp - 2500) / 4000)); return `hsl(${38 - t * 8} ${90 - t * 80}% ${62 + t * 20}%)`; }
     return 'var(--accent)';
   }
-  const pct = l => !l.online ? 'Not responding' : !l.on ? 'Off' : l.brightness != null ? l.brightness + '%' : 'On';
-  function card(l) {
-    const c = document.createElement('div'); c.className = 'li-card' + (l.on && l.online ? ' is-on' : '') + (l.online ? '' : ' is-offline'); c.dataset.id = l.id;
-    c.innerHTML = `<div class="li-top"><button class="li-main" data-li-open aria-label="More controls"><span class="li-dot"></span><span class="li-name"></span><small class="li-sub"></small></button>
-      <input type="checkbox" role="switch" class="mi-switch" data-li-toggle aria-label="On"></div>`;
-    c.querySelector('.li-name').textContent = l.name;
-    c.querySelector('.li-sub').textContent = pct(l);
-    c.querySelector('.li-dot').style.background = tint(l);
-    const sw = c.querySelector('[data-li-toggle]'); sw.checked = !!l.on; sw.disabled = !l.online;
-    if (l.brightness != null) {
-      const r = document.createElement('input'); r.type = 'range'; r.className = 'li-range'; r.min = 1; r.max = 100; r.value = l.brightness;
-      r.dataset.liDim = ''; r.setAttribute('aria-label', l.name + ' brightness'); r.disabled = !l.online; c.appendChild(r);
+  const pct = l => !l.online ? 'No reply' : !l.on ? 'Off' : l.brightness != null ? l.brightness + '%' : 'On';
+  const MORE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6"/></svg>';
+  function tile(l) {
+    const c = document.createElement('div');
+    c.className = 'tl' + (l.on && l.online ? ' is-on' : '') + (l.online ? '' : ' is-offline'); c.dataset.id = l.id;
+    c.innerHTML = `<button class="tl-main" data-li-tog><span class="tl-name"></span><span class="tl-sub"><span class="dot"></span><span class="tl-pct"></span></span></button>`;
+    const m = c.firstChild; m.disabled = !l.online;
+    m.setAttribute('aria-label', `${l.name}: ${pct(l)}. Tap to turn ${l.on ? 'off' : 'on'}`);
+    c.querySelector('.tl-name').textContent = l.name;
+    c.querySelector('.tl-pct').textContent = pct(l);
+    c.querySelector('.dot').style.background = tint(l);
+    if (l.kind !== 'plug' && (l.brightness != null || l.hsv || l.tempRange)) {
+      const o = document.createElement('button'); o.className = 'tl-more'; o.dataset.liOpen = ''; o.innerHTML = MORE;
+      o.setAttribute('aria-label', l.name + ': brightness and colour'); c.appendChild(o);
     }
     return c;
   }
+  const near = (a, b, d) => Math.abs(a - b) < d;
+  const isWarm = l => l.on && l.tempRange && l.temp && near(l.temp, Math.max(l.tempRange[0], 2700), 200);
   let dragging = false;
   function render() {
     $('#li-off').hidden = ready(); $('#li-on').hidden = !ready();
+    const live = lights.filter(l => l.online), nOn = live.filter(l => l.on).length;
     if (!dragging) {
       const box = $('#li-list'); box.textContent = '';
-      if (ready() && !lights.length) box.innerHTML = `<p class="menu-note">${failing ? 'No lights to show yet.' : lastOk ? 'The relay didn\'t find any Kasa lights. Make sure the computer is on the same Wi-Fi, then tap Rescan in Settings.' : 'Looking for lights…'}</p>`;
-      lights.forEach(l => box.appendChild(card(l)));
+      box.style.setProperty('--rows', Math.max(1, Math.ceil(lights.length / 2)));
+      if (ready() && !lights.length) box.innerHTML = `<p class="menu-note">${failing ? 'No lights to show yet.' : lastOk ? 'The relay didn\'t find any Kasa lights. Make sure the computer is on the same Wi-Fi, then Rescan in Settings.' : 'Looking for lights…'}</p>`;
+      lights.forEach(l => box.appendChild(tile(l)));
+      box.classList.toggle('busy', partyOn());
       renderOne();
     }
+    // status line
+    const led = $('#li-led');
+    led.className = 'led' + (!ready() ? '' : failing ? ' err' : lastOk ? ' on' : ' wait');
+    $('#li-sum').textContent = failing ? 'Can\'t reach the relay' : !lastOk && !lights.length ? 'Connecting…'
+      : !lights.length ? 'No lights found' : nOn ? `${nOn} of ${lights.length} on` : `All ${lights.length} off`;
+    const pw = $('#li-pow'); pw.setAttribute('aria-pressed', String(nOn > 0)); pw.setAttribute('aria-label', nOn ? 'All off' : 'All on'); pw.disabled = !live.length;
+    // channels: light up the one that matches what the lights are doing
+    const party = partyOn();
+    $('#ch-on').classList.toggle('cur', !party && live.length > 0 && nOn === live.length && !live.every(isWarm));
+    $('#ch-off').classList.toggle('cur', !party && live.length > 0 && nOn === 0);
+    const warmable = live.filter(l => l.tempRange);
+    $('#ch-warm').classList.toggle('cur', !party && warmable.length > 0 && warmable.every(isWarm));
+    $('#ch-party').classList.toggle('cur', party);
+    $('#ch-on').disabled = $('#ch-off').disabled = party || !live.length;
+    $('#ch-warm').disabled = party || !warmable.length;
+    // settings rows
     $('#li-status').textContent = !ready() ? 'Not set up' : failing ? 'Can\'t reach' : lastOk ? 'Connected' : 'Connecting…';
     $('#li-status').className = 'mi-value' + (ready() && !failing && lastOk ? ' t-accent' : '');
     $('#li-forget').hidden = !ready();
     $('#li-count').textContent = ready() ? String(lights.length) : '—';
     const pk = $('#k-power'), one = route() === '/light' && lights.find(x => x.id === openId);
-    pk.disabled = !ready() || (one ? !one.online : false);
-    pk.setAttribute('aria-pressed', String(one ? !!one.on : anyOn()));
-    pk.setAttribute('aria-label', one ? (one.on ? 'Turn off' : 'Turn on') : anyOn() ? 'All off' : 'All on');
+    pk.disabled = !ready() || party || (one ? !one.online : !live.length);
+    pk.setAttribute('aria-pressed', String(one ? !!one.on : nOn > 0));
+    pk.setAttribute('aria-label', one ? (one.on ? 'Turn off' : 'Turn on') : nOn ? 'All off' : 'All on');
   }
   const SWATCH = [['Green', 125, 85], ['Cyan', 185, 90], ['Blue', 225, 95], ['Purple', 275, 85], ['Pink', 320, 75], ['Red', 0, 95], ['Orange', 28, 95], ['Gold', 45, 85]];
-  const WHITES = [['Warm', 2700], ['Soft', 3500], ['Neutral', 4500], ['Daylight', 6500]];
+  const WHITES = [['Warm', 2700], ['Soft', 3500], ['Neutral', 4500], ['Day', 6500]];
   function renderOne() {
-    const l = lights.find(x => x.id === openId), v = $('#li-one');
-    if (!l) { v.innerHTML = '<p class="menu-note">That light is gone. Go back and pick another.</p>'; return; }
-    v.innerHTML = `<div class="li-card big${l.on && l.online ? ' is-on' : ''}" data-id=""><div class="li-top"><div class="li-main"><span class="li-dot"></span><span class="li-name"></span><small class="li-sub"></small></div>
-      <input type="checkbox" role="switch" class="mi-switch" data-li-toggle aria-label="On"></div></div>`;
-    const c = v.firstChild; c.dataset.id = l.id;
-    c.querySelector('.li-name').textContent = l.name; c.querySelector('.li-sub').textContent = pct(l) + (l.model ? ' · ' + l.model : '');
-    c.querySelector('.li-dot').style.background = tint(l);
-    const sw = c.querySelector('[data-li-toggle]'); sw.checked = !!l.on; sw.disabled = !l.online;
-    const group = (title, cls) => { const g = document.createElement('div'); g.className = 'menu-group'; g.innerHTML = `<span class="label"></span><div class="${cls}"></div>`; g.firstChild.textContent = title; v.appendChild(g); return g.lastChild; };
-    if (l.brightness != null) {
-      const r = document.createElement('input'); r.type = 'range'; r.className = 'li-range'; r.min = 1; r.max = 100; r.value = l.brightness; r.dataset.liDim = ''; r.dataset.id = l.id;
-      r.setAttribute('aria-label', 'Brightness'); r.disabled = !l.online; group('Brightness ' + l.brightness + '%', 'li-dimrow').appendChild(r);
-    }
+    const l = lights.find(x => x.id === openId);
+    $('#one-gone').hidden = !!l;
+    ['#one-dim', '#one-col', '#one-wh', '#one-pow'].forEach(k => { $(k).hidden = !l; });
+    if (!l) { $('#one-name').textContent = 'Light'; $('#one-sub').textContent = ''; return; }
+    $('#li-one').dataset.id = l.id;
+    $('#one-name').textContent = l.name;
+    $('#one-sub').textContent = pct(l) + (l.model ? ' · ' + l.model : '');
+    const d = $('#one-dot'); d.style.background = tint(l); d.classList.toggle('is-on', !!(l.on && l.online));
+    const pw = $('#one-pow'); pw.setAttribute('aria-pressed', String(!!l.on)); pw.setAttribute('aria-label', l.on ? 'Turn off' : 'Turn on'); pw.disabled = !l.online;
+    $('#one-dim').hidden = l.brightness == null;
+    if (l.brightness != null) { const r = $('#one-range'); r.value = l.brightness; r.disabled = !l.online; $('#one-pct').textContent = l.brightness + '%'; }
+    $('#one-col').hidden = !l.hsv;
     if (l.hsv) {
-      const g = group('Colour', 'li-swatches');
-      SWATCH.forEach(([n, h, s]) => { const b = document.createElement('button'); b.className = 'li-sw'; b.dataset.liHsv = h + ',' + s; b.dataset.id = l.id; b.setAttribute('aria-label', n);
-        b.style.background = `hsl(${h} ${s}% 55%)`; if (!l.temp && Math.abs(l.hsv[0] - h) < 6 && l.on) b.classList.add('is-sel'); b.disabled = !l.online; g.appendChild(b); });
+      const g = $('#one-sw'); g.textContent = '';
+      SWATCH.forEach(([n, h, s]) => { const b = document.createElement('button'); b.className = 'li-sw'; b.dataset.liHsv = h + ',' + s; b.setAttribute('aria-label', n);
+        b.style.background = `hsl(${h} ${s}% 55%)`; if (!l.temp && near(l.hsv[0], h, 6) && l.on) b.classList.add('is-sel'); b.disabled = !l.online; g.appendChild(b); });
     }
+    $('#one-wh').hidden = !l.tempRange;
     if (l.tempRange) {
-      const g = group('White', 'li-whites');
-      WHITES.forEach(([n, k]) => { const kk = Math.max(l.tempRange[0], Math.min(l.tempRange[1], k)); const b = document.createElement('button'); b.className = 'btn'; b.textContent = n;
-        b.dataset.liTemp = kk; b.dataset.id = l.id; if (l.temp && Math.abs(l.temp - kk) < 200 && l.on) b.classList.add('is-sel'); b.disabled = !l.online; g.appendChild(b); });
+      const g = $('#one-whites'); g.textContent = '';
+      WHITES.forEach(([n, k]) => { const kk = Math.max(l.tempRange[0], Math.min(l.tempRange[1], k)); const b = document.createElement('button'); b.className = 'rm-b'; b.textContent = n;
+        b.dataset.liTemp = kk; if (l.temp && near(l.temp, kk, 200) && l.on) b.classList.add('is-sel'); b.disabled = !l.online; g.appendChild(b); });
     }
+  }
+  // Warm: every white-capable light to warm white, the rest on
+  async function warm() {
+    const live = lights.filter(l => l.online); if (!live.length) return;
+    live.forEach(l => { l.on = true; if (l.tempRange) { l.temp = Math.max(l.tempRange[0], 2700); } }); render();
+    const res = await Promise.allSettled(live.map(l => call('/lights/' + encodeURIComponent(l.id), l.tempRange ? { temp: l.temp, on: true } : { on: true })));
+    res.forEach(r => { if (r.status === 'fulfilled') merge(r.value); });
+    const bad = res.find(r => r.status === 'rejected'); if (bad) { note(bad.reason.message); PH.toast(bad.reason.message, 'warn'); } else note('');
+    render();
   }
 
   /* ---------- Wiring ---------- */
   const idOf = el => el.dataset.id || el.closest('[data-id]')?.dataset.id;
-  document.addEventListener('change', e => {
-    const t = e.target;
-    if (t.matches('[data-li-toggle]')) set(idOf(t), { on: t.checked });
-    else if (t.matches('[data-li-dim]')) { dragging = false; set(idOf(t), { brightness: +t.value }); }
-  });
-  document.addEventListener('input', e => {
-    if (!e.target.matches('[data-li-dim]')) return;
-    dragging = true;
-    const card = e.target.closest('.li-card'); if (card) card.querySelector('.li-sub').textContent = e.target.value + '%';
-    const lab = e.target.closest('.menu-group')?.querySelector('.label'); if (lab) lab.textContent = 'Brightness ' + e.target.value + '%';
-  });
+  $('#one-range').addEventListener('input', e => { dragging = true; $('#one-pct').textContent = e.target.value + '%'; });
+  $('#one-range').addEventListener('change', e => { dragging = false; set(idOf(e.target), { brightness: +e.target.value }); });
+  $('#one-pow').addEventListener('click', () => { const l = lights.find(x => x.id === openId); if (l) set(l.id, { on: !l.on }); });
+  $('#li-pow').addEventListener('click', () => all(!anyOn()));
   document.addEventListener('click', e => {
+    const t = e.target.closest('[data-li-tog]');
+    if (t) { const l = lights.find(x => x.id === idOf(t)); if (l && !partyOn()) set(l.id, { on: !l.on }); return; }
     const o = e.target.closest('[data-li-open]');
     if (o) { openId = idOf(o); save('open', openId); renderOne(); PH.go('/light'); return; }
     const sw = e.target.closest('[data-li-hsv]');
     if (sw) { const [h, s] = sw.dataset.liHsv.split(',').map(Number); const l = lights.find(x => x.id === idOf(sw)); set(idOf(sw), { hsv: [h, s, (l && l.brightness) || 80] }); return; }
     const w = e.target.closest('[data-li-temp]');
     if (w) { set(idOf(w), { temp: +w.dataset.liTemp }); return; }
+    if (e.target.closest('[data-li-warm]')) { warm(); return; }
     const a = e.target.closest('[data-li-all]');
     if (a) all(a.dataset.liAll === 'on');
   });
@@ -237,20 +265,22 @@ PH.init({ partyMode: 'strobe', partySpeed: 'medium' });
     PH.toast('Party over. Lights restored.');
     sync();
   }
+  const MODE_T = { strobe: 'Strobe', color: 'Colour', both: 'Strobe + colour' }, SPEED_T = { slow: 'Slow', medium: 'Medium', fast: 'Fast' };
   function renderParty() {
-    const on = partyOn();
-    $('#pa-stage').classList.toggle('is-on', on);
-    $('#pa-state').textContent = on ? 'Party on' : 'Ready';
-    $('#pa-go').textContent = on ? 'Stop party' : 'Start party';
-    $('#pa-go').className = 'btn btn-block ' + (on ? 'btn-danger' : 'btn-primary');
+    const on = partyOn(), m = PH.store.get('partyMode');
+    const go = $('#pa-go'); go.classList.toggle('is-on', on); go.classList.toggle('pa-live', on);
+    go.innerHTML = (on ? STOP_SVG : GO_SVG) + `<span>${on ? 'Stop party' : 'Start party'}</span>`;
+    $('#pa-led').className = 'led' + (on ? ' on' : '');
+    $('#pa-hint').textContent = on ? 'Party on' : m === 'color' ? 'Colour bulbs jump between colours' : m === 'both' ? 'Flash and change colour' : 'Every light flashes together';
+    $('#pa-line').hidden = !on;
+    $('#pa-line-s').textContent = MODE_T[m] + ' · ' + SPEED_T[PH.store.get('partySpeed')];
     const k = $('#k-party'); k.innerHTML = on ? STOP_SVG : GO_SVG; k.setAttribute('aria-label', on ? 'Stop party' : 'Start party'); k.setAttribute('aria-pressed', String(on));
-    const m = PH.store.get('partyMode');
-    $('#pa-hint').textContent = m === 'color' ? 'Colour bulbs jump between bright colours.' : m === 'both' ? 'Lights flash and colour bulbs change colour on every flash.' : 'Every light flashes on and off together.';
+    render();
   }
   document.addEventListener('click', e => { if (e.target.closest('[data-pa-toggle]')) partyOn() ? stopParty() : startParty(); });
-  PH.on('partyMode', renderParty);
-  // Party mode lives on its page: leaving it (Back, Home, the menu) ends the party
-  PH.on('route', r => { if (party && r !== '/party') stopParty(); });
+  PH.on('partyMode', renderParty); PH.on('partySpeed', renderParty);
+  // A party runs from the Lights or Party page; going anywhere else ends it
+  PH.on('route', r => { if (party && r !== '/party' && r !== '/') stopParty(); });
   renderParty();
   // Phosphor OS awaits this before removing the app's frame, so a running party is stopped and restored
   window.osBeforeClose = () => stopParty();
