@@ -34,17 +34,19 @@ PH.init({ partyMode: 'strobe', partySpeed: 'medium' });
     } finally { clearTimeout(t); }
     const d = await r.json().catch(() => ({}));
     if (r.status === 401) throw new Error('The relay rejected the key. Paste the Lights link again.');
-    if (!r.ok) throw new Error(d.error || 'Relay error ' + r.status);
+    if (!r.ok) { const e = new Error(d.error || 'Relay error ' + r.status); e.status = r.status; throw e; }
     return d;
   }
 
   const note = t => { $('#li-note').textContent = t || ''; $('#li-note').hidden = !t; };
   async function refresh(scan) {
+    const pp = pollParty();
     try {
       const d = await call(scan ? '/lights/rescan' : '/lights', scan ? {} : undefined);
       lights = d.lights || []; save('cache', lights); lastOk = Date.now(); failing = false; note('');
       if (scan) PH.toast(lights.length + ' light' + (lights.length === 1 ? '' : 's') + ' found.');
     } catch (e) { failing = true; note(e.message); if (scan) PH.toast(e.message, 'warn'); }
+    await pp;
     render();
   }
   const merge = d => { const i = lights.findIndex(x => x.id === d.id); if (i >= 0) lights[i] = d; else lights.push(d); save('cache', lights); };
@@ -214,18 +216,56 @@ PH.init({ partyMode: 'strobe', partySpeed: 'medium' });
 
 
   /* ---------- Party mode: every light flashes together until stopped ---------- */
-  // Each beat sends one request per light at the same time and waits for them all, so the
+  // The relay runs the party (party.py next to kasa_bridge.py), so it keeps going after this app is
+  // closed, and Phosphor OS and Home Map see and stop the same party. An older relay without it
+  // falls back to the loop below, which only runs while this app is open.
+  let relayParty = null, relayHas = null, adopting = false;   // relayHas: null = not asked yet
+  async function pollParty() {
+    if (relayHas === false || !ready()) return;
+    try { adopt(await call('/party')); relayHas = true; }
+    catch (e) { if (e.status === 404 || e.status === 405) relayHas = false; }
+  }
+  function adopt(d) {
+    relayParty = d;
+    if (d && d.on) {   // show the mode and speed the party is really using
+      adopting = true;
+      if (d.mode && PH.store.get('partyMode') !== d.mode) PH.store.set('partyMode', d.mode);
+      if (d.speed && PH.store.get('partySpeed') !== d.speed) PH.store.set('partySpeed', d.speed);
+      adopting = false;
+    }
+    renderParty();
+  }
+  async function startParty() {
+    if (!ready()) { PH.go('/settings/relay'); return; }
+    if (relayHas === null) await pollParty();
+    if (!relayHas) return startLocal();
+    try { adopt(await call('/party', { on: true, mode: PH.store.get('partyMode'), speed: PH.store.get('partySpeed') })); PH.toast('Party on. It keeps going until you stop it.'); }
+    catch (e) { PH.toast(e.message, 'warn'); }
+  }
+  async function stopParty() {
+    if (party) return stopLocal();
+    if (!relayParty || !relayParty.on) return;
+    try { adopt(await call('/party', { on: false })); PH.toast('Party over. Lights restored.'); }
+    catch (e) { PH.toast(e.message, 'warn'); }
+    refresh();
+  }
+  function partyChanged() {
+    if (!adopting && relayParty && relayParty.on)
+      call('/party', { mode: PH.store.get('partyMode'), speed: PH.store.get('partySpeed') }).then(adopt).catch(() => {});
+    renderParty();
+  }
+
+  // Fallback for an older relay: each beat sends one request per light at the same time and waits for them all, so the
   // pace never outruns what the bulbs and the relay can do. Lights are put back afterwards.
   const BEAT = { slow: 1200, medium: 600, fast: 250 };
   const STOP_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14"/></svg>';
   const GO_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>';
-  let party = null;   // { snap, beat, fails }
-  const partyOn = () => !!party;
+  let party = null;   // the local loop: { snap, beat, fails }
+  const partyOn = () => !!party || !!(relayParty && relayParty.on);
   const send = (id, body) => call('/lights/' + encodeURIComponent(id), body);
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   let wake = null;
-  async function startParty() {
-    if (!ready()) { PH.go('/settings/relay'); return; }
+  async function startLocal() {
     const targets = lights.filter(l => l.online);
     if (!targets.length) { PH.toast('No lights are responding right now.', 'warn'); return; }
     party = { snap: targets.map(l => ({ ...l, hsv: l.hsv && [...l.hsv] })), beat: 0, fails: 0 };
@@ -244,11 +284,11 @@ PH.init({ partyMode: 'strobe', partySpeed: 'medium' });
       const res = await run.pending;
       if (party !== run) break;
       run.fails = res.every(r => r.status === 'rejected') ? run.fails + 1 : 0;
-      if (run.fails >= 3) { PH.toast(res[0].reason?.message || 'Lost the relay.', 'warn'); await stopParty(); return; }
+      if (run.fails >= 3) { PH.toast(res[0].reason?.message || 'Lost the relay.', 'warn'); await stopLocal(); return; }
       await sleep(Math.max(0, (BEAT[PH.store.get('partySpeed')] || 600) - (Date.now() - t0)));
     }
   }
-  async function stopParty() {
+  async function stopLocal() {
     const run = party; if (!run) return;
     party = null; renderParty();
     try { await wake?.release(); } catch {} wake = null;
@@ -271,26 +311,26 @@ PH.init({ partyMode: 'strobe', partySpeed: 'medium' });
     const go = $('#pa-go'); go.classList.toggle('is-on', on); go.classList.toggle('pa-live', on);
     go.innerHTML = (on ? STOP_SVG : GO_SVG) + `<span>${on ? 'Stop party' : 'Start party'}</span>`;
     $('#pa-led').className = 'led' + (on ? ' on' : '');
-    $('#pa-hint').textContent = on ? 'Party on' : m === 'color' ? 'Colour bulbs jump between colours' : m === 'both' ? 'Flash and change colour' : 'Every light flashes together';
+    $('#pa-hint').textContent = on ? (party ? 'Party on while this app is open' : 'Party on until you stop it') : m === 'color' ? 'Colour bulbs jump between colours' : m === 'both' ? 'Flash and change colour' : 'Every light flashes together';
     $('#pa-line').hidden = !on;
     $('#pa-line-s').textContent = MODE_T[m] + ' · ' + SPEED_T[PH.store.get('partySpeed')];
     const k = $('#k-party'); k.innerHTML = on ? STOP_SVG : GO_SVG; k.setAttribute('aria-label', on ? 'Stop party' : 'Start party'); k.setAttribute('aria-pressed', String(on));
     render();
   }
   document.addEventListener('click', e => { if (e.target.closest('[data-pa-toggle]')) partyOn() ? stopParty() : startParty(); });
-  PH.on('partyMode', renderParty); PH.on('partySpeed', renderParty);
-  // A party runs from the Lights or Party page; going anywhere else ends it
-  PH.on('route', r => { if (party && r !== '/party' && r !== '/') stopParty(); });
+  PH.on('partyMode', partyChanged); PH.on('partySpeed', partyChanged);
+  // The fallback loop can't outlive this page, so leaving the Lights and Party pages ends it
+  PH.on('route', r => { if (party && r !== '/party' && r !== '/') stopLocal(); });
   renderParty();
-  // Phosphor OS awaits this before removing the app's frame, so a running party is stopped and restored
-  window.osBeforeClose = () => stopParty();
+  // Phosphor OS awaits this before removing the app's frame. A relay party keeps going; only the fallback loop stops.
+  window.osBeforeClose = () => stopLocal();
 
   // Poll only while the app is on screen
   let pollT = null;
   function sync() {
     clearInterval(pollT); pollT = null;
     render();
-    if (party) { if (document.hidden) stopParty(); return; }
+    if (party) { if (document.hidden) stopLocal(); return; }
     if (document.hidden || !ready()) return;
     refresh(); pollT = setInterval(() => { if (!dragging) refresh(); }, 6000);
   }
